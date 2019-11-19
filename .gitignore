@@ -1,3 +1,5 @@
 albert/input_ex/
 albert/model/
 albert/__pycache__/
+bert/__pycache__/
+bert/input_ex/
