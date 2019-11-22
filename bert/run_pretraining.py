@@ -409,6 +409,11 @@ def main(_):
 
   hvd.init()
 
+    # GPU의 개수 만큼 Step 수 줄임 (그만큼 batch 수가 늘어나므로!)
+  if FLAGS.do_train:
+      FLAGS.num_warmup_steps//=hvd.size()
+      FLAGS.num_train_steps//=hvd.size()
+
   if not FLAGS.do_train and not FLAGS.do_eval:
     raise ValueError("At least one of `do_train` or `do_eval` must be True.")
 
@@ -451,7 +456,7 @@ def main(_):
       bert_config=bert_config,
       init_checkpoint=FLAGS.init_checkpoint,
       learning_rate=FLAGS.learning_rate,
-      num_train_steps=int(FLAGS.num_train_steps/hvd.size()),
+      num_train_steps=FLAGS.num_train_steps,
       num_warmup_steps=FLAGS.num_warmup_steps,
       use_tpu=FLAGS.use_tpu,
       use_one_hot_embeddings=FLAGS.use_tpu)
