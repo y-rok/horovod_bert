@@ -175,14 +175,23 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
 
     output_spec = None
     if mode == tf.estimator.ModeKeys.TRAIN:
-      train_op = optimization.create_optimizer(
+      train_op,global_step = optimization.create_optimizer(
           total_loss, learning_rate, num_train_steps, num_warmup_steps, use_tpu)
 
-      output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+      hooks=[tf.train.LoggingTensorHook({"steps":global_step,"loss":total_loss},every_n_iter=1)] if hvd.rank()==0 else None
+      # hooks = [tf.train.LoggingTensorHook({"steps": global_step, "loss": total_loss},every_n_iter=10)]
+
+      output_spec = tf.estimator.EstimatorSpec(
+          training_hooks=hooks,
           mode=mode,
           loss=total_loss,
-          train_op=train_op,
-          scaffold_fn=scaffold_fn)
+          train_op=train_op)
+      # output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+      #     training_hooks=[logging_hook],
+      #     mode=mode,
+      #     loss=total_loss,
+      #     train_op=train_op,
+      #     scaffold_fn=scaffold_fn)
     elif mode == tf.estimator.ModeKeys.EVAL:
 
       def metric_fn(masked_lm_example_loss, masked_lm_log_probs, masked_lm_ids,
@@ -411,6 +420,7 @@ def main(_):
 
     # GPU의 개수 만큼 Step 수 줄임 (그만큼 batch 수가 늘어나므로!)
   if FLAGS.do_train:
+      # warmup - large learning rate / train - small learning rate
       FLAGS.num_warmup_steps//=hvd.size()
       FLAGS.num_train_steps//=hvd.size()
 
@@ -419,7 +429,8 @@ def main(_):
 
   bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
 
-  tf.gfile.MakeDirs(FLAGS.output_dir)
+  if hvd.rank() == 0:
+    tf.gfile.MakeDirs(FLAGS.output_dir)
 
   input_files = []
   for input_pattern in FLAGS.input_file.split(","):
@@ -441,12 +452,14 @@ def main(_):
 
   is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
 
+  output_dir = FLAGS.output_dir if hvd.rank()==0 else None
+
   run_config = tf.contrib.tpu.RunConfig(
       session_config=hvd_config,
       cluster=tpu_cluster_resolver,
       master=FLAGS.master,
-      model_dir=FLAGS.output_dir,
-      save_checkpoints_steps=FLAGS.save_checkpoints_steps,
+      model_dir=output_dir,
+      save_checkpoints_steps=FLAGS.save_checkpoints_steps, # save checkpoints every this many steps
       tpu_config=tf.contrib.tpu.TPUConfig(
           iterations_per_loop=FLAGS.iterations_per_loop,
           num_shards=FLAGS.num_tpu_cores,
