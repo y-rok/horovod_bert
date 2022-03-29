@@ -1,4 +1,4 @@
-horovod==0.18.2
+horovod==0.24.0
 Keras==2.3.1
 numpy==1.17.4
 sentencepiece==0.1.83
