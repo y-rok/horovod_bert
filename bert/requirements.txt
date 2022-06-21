@@ -1,5 +1,5 @@
 horovod==0.18.2
 Keras==2.3.1
-numpy==1.17.4
+numpy==1.22.0
 sentencepiece==0.1.83
 tensorflow-gpu==1.13.2
